@@ -11,6 +11,9 @@ from rich.prompt import Prompt
 
 console = Console()
 
+# Global Configuration / API Keys
+VERIPHONE_API_KEY = "E9C4720C579B445FB62BFCB3DB7DBF9E"
+
 def clear_screen():
     os.system('cls' if os.name == 'nt' else 'clear')
 
@@ -28,25 +31,29 @@ def show_banner():
 # -------------------------------------------------------------
 def phone_lookup():
     show_banner()
-    number = Prompt.ask("[bold yellow]Enter Phone Number with country code (e.g., +1234567890)[/bold yellow]")
+    number = Prompt.ask("[bold yellow]Enter Phone Number with country code (e.g., +919137883475)[/bold yellow]")
     console.print(f"\n[cyan][*] Analyzing Phone Number structure: {number}[/cyan]\n")
     
     try:
-        # Free carrier/country API lookup
-        res = requests.get(f"https://api.veriphone.io/v2/verify?phone={number}&key=guest").json()
+        url = f"https://api.veriphone.io/v2/verify?phone={number}&key={VERIPHONE_API_KEY}"
+        res = requests.get(url, timeout=7).json()
         
-        table = Table(title="Phone Number Intelligence")
+        table = Table(title=f"Phone Intelligence: {number}")
         table.add_column("Property", style="cyan")
         table.add_column("Value", style="magenta")
         
-        table.add_row("Valid Number", str(res.get("phone_valid", "Unknown")))
-        table.add_row("Country", res.get("country", "N/A"))
-        table.add_row("Carrier / Network", res.get("carrier", "N/A"))
-        table.add_row("Line Type", res.get("line_type", "N/A"))
-        
-        console.print(table)
-    except Exception:
-        console.print("[red][!] Phone lookup API limit reached or invalid input.[/red]")
+        if res.get("status") == "success":
+            table.add_row("Valid Number", "[bold green]YES[/bold green]" if res.get("phone_valid") else "[bold red]NO[/bold red]")
+            table.add_row("Country", f"{res.get('country', 'N/A')} ({res.get('country_code', 'N/A')})")
+            table.add_row("Carrier / Network", res.get("carrier") if res.get("carrier") else "Unknown / Ported")
+            table.add_row("Line Type", str(res.get("line_type", "N/A")).capitalize())
+            table.add_row("International Format", res.get("phone_region", "N/A"))
+            console.print(table)
+        else:
+            console.print("[bold red][!] Invalid API response or key quota exceeded.[/bold red]")
+            
+    except Exception as e:
+        console.print(f"[red][!] Error reaching Phone Verification API: {e}[/red]")
     
     Prompt.ask("\n[dim]Press Enter to go back...[/dim]")
 
@@ -72,7 +79,7 @@ def username_lookup():
         try:
             res = requests.get(url, timeout=4)
             if res.status_code == 200:
-                table.add_row(site, url, "EXISTS")
+                table.add_row(site, url, "[bold green]EXISTS[/bold green]")
             else:
                 table.add_row(site, url, "[red]NOT FOUND[/red]")
         except Exception:
@@ -107,7 +114,7 @@ def network_recon():
 
     # IP Geolocation
     try:
-        ip_res = requests.get(f"https://ipapi.co/{target}/json/").json()
+        ip_res = requests.get(f"https://ipapi.co/{target}/json/", timeout=5).json()
         table.add_row("Resolved IP", ip_res.get("ip", "N/A"))
         table.add_row("Country / City", f"{ip_res.get('country_name', 'N/A')} - {ip_res.get('city', 'N/A')}")
         table.add_row("ASN / ISP", f"{ip_res.get('asn', 'N/A')} / {ip_res.get('org', 'N/A')}")
